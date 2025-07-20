@@ -60,12 +60,7 @@ class TestGithubOrgClient(unittest.TestCase):
         ({"license": {"key": "my_license"}}, "my_license", True),
         ({"license": {"key": "other_license"}}, "my_license", False),
     ])
-    def test_has_license(
-        self,
-        repo: Dict,
-        license_key: str,
-        expected: bool
-    ) -> None:
+    def test_has_license(self, repo: Dict, license_key: str, expected: bool) -> None:
         """Tests the `has_license` static method."""
         self.assertEqual(
             GithubOrgClient.has_license(repo, license_key),
@@ -114,7 +109,6 @@ class TestIntegrationGithubOrgClient(unittest.TestCase):
     def test_public_repos(self) -> None:
         """
         Integration test for the `public_repos` method without a license.
-        This method is part of Task 9.
         """
         test_client = GithubOrgClient("google")
         repos = test_client.public_repos()
@@ -123,7 +117,6 @@ class TestIntegrationGithubOrgClient(unittest.TestCase):
     def test_public_repos_with_license(self) -> None:
         """
         Integration test for the `public_repos` method with a license filter.
-        This method is part of Task 9.
         """
         test_client = GithubOrgClient("google")
         repos = test_client.public_repos(license="apache-2.0")
