@@ -31,8 +31,10 @@ class TestGithubOrgClient(unittest.TestCase):
     def test_public_repos_url(self) -> None:
         """Tests the `_public_repos_url` property."""
         known_payload = {"repos_url": "http://example.com/repos"}
-        with patch('client.GithubOrgClient.org',
-                   new_callable=PropertyMock) as mock_org:
+        with patch(
+            'client.GithubOrgClient.org',
+            new_callable=PropertyMock
+        ) as mock_org:
             mock_org.return_value = known_payload
             test_client = GithubOrgClient("test_org")
             result = test_client._public_repos_url
@@ -44,8 +46,10 @@ class TestGithubOrgClient(unittest.TestCase):
         test_payload = [{"name": "repo1"}, {"name": "repo2"}]
         mock_get_json.return_value = test_payload
 
-        with patch('client.GithubOrgClient._public_repos_url',
-                   new_callable=PropertyMock) as mock_public_repos_url:
+        with patch(
+            'client.GithubOrgClient._public_repos_url',
+            new_callable=PropertyMock
+        ) as mock_public_repos_url:
             mock_public_repos_url.return_value = "http://example.com/repos"
             test_client = GithubOrgClient("test_org")
             self.assertEqual(test_client.public_repos(), ["repo1", "repo2"])
@@ -56,12 +60,17 @@ class TestGithubOrgClient(unittest.TestCase):
         ({"license": {"key": "my_license"}}, "my_license", True),
         ({"license": {"key": "other_license"}}, "my_license", False),
     ])
-    def test_has_license(self,
-                         repo: Dict,
-                         license_key: str,
-                         expected: bool) -> None:
+    def test_has_license(
+        self,
+        repo: Dict,
+        license_key: str,
+        expected: bool
+    ) -> None:
         """Tests the `has_license` static method."""
-        self.assertEqual(GithubOrgClient.has_license(repo, license_key), expected)
+        self.assertEqual(
+            GithubOrgClient.has_license(repo, license_key),
+            expected
+        )
 
 
 @parameterized_class(
@@ -73,25 +82,24 @@ class TestIntegrationGithubOrgClient(unittest.TestCase):
     Integration test suite for the `GithubOrgClient` class.
     This class mocks external HTTP calls using fixtures.
     """
+
     @classmethod
     def setUpClass(cls) -> None:
         """Set up the class by patching `requests.get` with a side effect."""
-        
+
         def side_effect(url):
             """
             Defines the side effect for the mock. It returns different
             payloads based on the URL that is requested.
             """
             mock_response = Mock()
-            # The org name is hardcoded to 'google' in the fixture
             org_url = "https://api.github.com/orgs/google"
-            
+
             if url == org_url:
                 mock_response.json.return_value = cls.org_payload
             elif url == cls.org_payload["repos_url"]:
                 mock_response.json.return_value = cls.repos_payload
             else:
-                # If any other URL is called, the test should fail
                 mock_response.status_code = 404
             return mock_response
 
@@ -108,7 +116,6 @@ class TestIntegrationGithubOrgClient(unittest.TestCase):
         Integration test for the `public_repos` method without a license.
         This method is part of Task 9.
         """
-        # The org name must match what the setUpClass side_effect expects
         test_client = GithubOrgClient("google")
         repos = test_client.public_repos()
         self.assertEqual(repos, self.expected_repos)
