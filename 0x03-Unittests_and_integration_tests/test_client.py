@@ -1,61 +1,52 @@
 #!/usr/bin/env python3
-"""A github org client
 """
-from typing import (
-    List,
-    Dict,
-)
+Unit tests for GithubOrgClient
+"""
 
-from utils import (
-    get_json,
-    access_nested_map,
-    memoize,
-)
+import unittest
+from unittest.mock import patch, PropertyMock
+from typing import List
+
+from client import GithubOrgClient
 
 
-class GithubOrgClient:
-    """A Github org client
+class TestGithubOrgClient(unittest.TestCase):
     """
-    ORG_URL = "https://api.github.com/orgs/{org}"
+    Test case for GithubOrgClient
+    """
 
-    def __init__(self, org_name: str) -> None:
-        """Init method of GithubOrgClient"""
-        self._org_name = org_name
-
-    @memoize
-    def org(self) -> Dict:
-        """Memoize org"""
-        return get_json(self.ORG_URL.format(org=self._org_name))
-
-    @property
-    def _public_repos_url(self) -> str:
-        """Public repos URL"""
-        return self.org["repos_url"]
-
-    @memoize
-    def repos_payload(self) -> Dict:
-        """Memoize repos payload"""
-        return get_json(self._public_repos_url)
-
-    def public_repos(self, license: str = None) -> List[str]:
-        """Public repos"""
-        json_payload = self.repos_payload
-        public_repos = [
-            repo["name"] for repo in json_payload
-            if license is None or self.has_license(repo, license)
+    @patch('client.get_json')
+    def test_public_repos(self, mock_get_json) -> None:
+        """
+        Test that public_repos returns the expected list of repository names
+        and that get_json and _public_repos_url are called properly.
+        """
+        # Define the fake payload returned by get_json
+        fake_payload = [
+            {'name': 'repo1', 'license': {'key': 'apache-2.0'}},
+            {'name': 'repo2', 'license': {'key': 'mit'}},
+            {'name': 'repo3', 'license': {'key': 'apache-2.0'}}
         ]
 
-        return public_repos
+        # Set the return value of mock_get_json
+        mock_get_json.return_value = fake_payload
 
-    @staticmethod
-    def has_license(repo: Dict[str, Dict], license_key: str) -> bool:
-        """Static: has_license"""
-        assert license_key is not None, "license_key cannot be None"
-        try:
-            has_license = access_nested_map(
-                repo,
-                ("license", "key"),
-            ) == license_key
-        except KeyError:
-            return False
-        return has_license
+        # Patch the _public_repos_url property to return a test URL
+        with patch('client.GithubOrgClient._public_repos_url', new_callable=PropertyMock) as mock_repos_url:
+            mock_repos_url.return_value = "https://api.github.com/orgs/test_org/repos"
+
+            client = GithubOrgClient('test_org')
+            repos: List[str] = client.public_repos()
+
+            # We expect public_repos() to return just the names
+            expected = ['repo1', 'repo2', 'repo3']
+            self.assertEqual(repos, expected)
+
+            # Assert get_json called once with mocked URL
+            mock_get_json.assert_called_once_with("https://api.github.com/orgs/test_org/repos")
+
+            mock_repos_url.assert_called_once()
+
+
+if __name__ == '__main__':
+    unittest.main()
