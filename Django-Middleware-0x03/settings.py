@@ -1,16 +1,16 @@
+import os
 from pathlib import Path
 from datetime import timedelta
-import os
 
-# Build paths inside the project like this: BASE_DIR / 'subdir'.
+# Build paths inside the project like this: BASE_DIR / 'subdir'
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# --- CORE SETTINGS ---
-SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'django-insecure-this-is-a-dev-key-change-it')
-DEBUG = os.getenv('DEBUG', 'True') == 'True'
-ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', '').split(',') if os.getenv('ALLOWED_HOSTS') else []
+# Quick-start development settings - unsuitable for production
+SECRET_KEY = 'django-insecure-your-secret-key-here'  # Change this in production!
+DEBUG = True
+ALLOWED_HOSTS = []
 
-# --- APPLICATION DEFINITION ---
+# Application definition
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
@@ -18,18 +18,12 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    
-    # Third-party apps
     'rest_framework',
     'rest_framework_simplejwt',
-    
-    # Local apps
-    'chats.apps.ChatsConfig',
+    'chats',
 ]
 
-# --- MIDDLEWARE CONFIGURATION ---
 MIDDLEWARE = [
-    # Django built-in middleware
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -38,20 +32,19 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     
-    # Custom middleware - ordered by execution priority
-    'chats.middleware.RolePermissionMiddleware',        # First check user roles
-    'chats.middleware.OffensiveLanguageMiddleware',      # Then check rate limits
-    'chats.middleware.RestrictAccessByTimeMiddleware',   # Then check time restrictions
-    'chats.middleware.RequestLoggingMiddleware',        # Finally log successful requests
+    # Custom middleware - add them in execution order
+    'chats.middleware.RolePermissionMiddleware',
+    'chats.middleware.OffensiveLanguageMiddleware',
+    'chats.middleware.RestrictAccessByTimeMiddleware',
+    'chats.middleware.RequestLoggingMiddleware',
 ]
 
-# --- URL AND TEMPLATE CONFIGURATION ---
-ROOT_URLCONF = 'config.urls'  # Updated to point to config/urls.py
+ROOT_URLCONF = 'Django-Middleware-0x03.urls'
 
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [os.path.join(BASE_DIR, 'templates')],
+        'DIRS': [],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -64,9 +57,9 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = 'config.wsgi.application'  # Updated to point to config/wsgi.py
+WSGI_APPLICATION = 'Django-Middleware-0x03.wsgi.application'
 
-# --- DATABASE CONFIGURATION ---
+# Database
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
@@ -74,16 +67,13 @@ DATABASES = {
     }
 }
 
-# --- AUTHENTICATION & PASSWORDS ---
+# Password validation
 AUTH_PASSWORD_VALIDATORS = [
     {
         'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
     },
     {
         'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
-        'OPTIONS': {
-            'min_length': 8,
-        }
     },
     {
         'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
@@ -93,27 +83,19 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
-# Custom user model
-AUTH_USER_MODEL = 'chats.User'
-
-# --- INTERNATIONALIZATION ---
+# Internationalization
 LANGUAGE_CODE = 'en-us'
 TIME_ZONE = 'UTC'
 USE_I18N = True
-USE_L10N = True
 USE_TZ = True
 
-# --- STATIC & MEDIA FILES ---
-STATIC_URL = '/static/'
-STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
-STATICFILES_DIRS = [os.path.join(BASE_DIR, 'static')]
+# Static files (CSS, JavaScript, Images)
+STATIC_URL = 'static/'
 
-MEDIA_URL = '/media/'
-MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
-
+# Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# --- REST FRAMEWORK CONFIGURATION ---
+# REST Framework settings
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
@@ -121,32 +103,35 @@ REST_FRAMEWORK = {
     ),
     'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.IsAuthenticated',
-    ),
-    'DEFAULT_THROTTLE_RATES': {
-        'anon': '100/day',
-        'user': '1000/day',
-    }
+    )
 }
 
-# --- SIMPLE JWT CONFIGURATION ---
+# Simple JWT settings
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=150),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
-    'ROTATE_REFRESH_TOKENS': True,
-    'BLACKLIST_AFTER_ROTATION': True,
-    'UPDATE_LAST_LOGIN': True,
 }
 
-# --- CACHE CONFIGURATION (For rate limiting) ---
+# Cache configuration for rate limiting
 CACHES = {
     'default': {
         'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
         'LOCATION': 'unique-snowflake',
-        'TIMEOUT': 60,  # 1 minute timeout for rate limiting
     }
 }
 
-# --- LOGGING CONFIGURATION ---
+# Custom settings for middleware
+CHAT_ACCESS_HOURS = {
+    'start': 21,  # 9 PM
+    'end': 6,     # 6 AM
+}
+
+MESSAGE_RATE_LIMIT = {
+    'max_messages': 5,
+    'time_window': 60,  # seconds
+}
+
+# Logging configuration
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
@@ -164,17 +149,4 @@ LOGGING = {
             'propagate': True,
         },
     },
-}
-
-# --- CUSTOM SETTINGS ---
-# For time restriction middleware
-CHAT_ACCESS_HOURS = {
-    'start': 21,  # 9 PM
-    'end': 6,     # 6 AM
-}
-
-# For rate limiting middleware
-MESSAGE_RATE_LIMIT = {
-    'max_messages': 5,
-    'time_window': 60,  # seconds
 }
