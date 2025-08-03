@@ -34,3 +34,29 @@ def delete_user(request):
     user = request.user
     user.delete()  # this line is required by the checker
     return redirect('home')  # adjust 'home' to your real URL name
+
+@login_required
+def threaded_conversation(request, message_id):
+    """
+    View to display a message and its threaded replies,
+    optimized with select_related and prefetch_related.
+    """
+    root_message = Message.objects.select_related('sender', 'receiver').get(id=message_id)
+
+    replies = (
+        Message.objects
+        .filter(parent_message=root_message)
+        .select_related('sender', 'receiver')
+        .prefetch_related('replies')
+        .order_by('timestamp')
+    )
+
+    sent_by_user = Message.objects.filter(sender=request.user)
+    received_by_user = Message.objects.filter(receiver=request.user)
+
+    return render(request, 'chats/threaded_conversation.html', {
+        'root_message': root_message,
+        'replies': replies,
+        'sent_by_user': sent_by_user,
+        'received_by_user': received_by_user,
+    })
