@@ -60,3 +60,14 @@ def threaded_conversation(request, message_id):
         'sent_by_user': sent_by_user,
         'received_by_user': received_by_user,
     })
+
+@login_required
+def unread_messages_view(request):
+    """
+    Display unread messages for the logged-in user using the custom manager.
+    """
+    unread_messages = Message.unread.unread_for_user(request.user)
+
+    return render(request, 'chats/unread_messages.html', {
+        'unread_messages': unread_messages,
+    })
