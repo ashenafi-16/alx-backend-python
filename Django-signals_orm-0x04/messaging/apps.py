@@ -5,4 +5,8 @@ class MessagingConfig(AppConfig):
     name = 'messaging'
 
     def ready(self):
-        import messaging.signals  # Import signals
+        """
+        This method is called when the app is ready.
+        It's the recommended place to import and connect signals.
+        """
+        import messaging.signals
