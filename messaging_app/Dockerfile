@@ -1,21 +1,23 @@
-# Use Python 3.10 base image
-FROM python:3.10
+FROM python:3.10-slim
 
-# Set working directory inside container
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+ENV DJANGO_ALLOWED_HOSTS="*"
+
 WORKDIR /app
 
-# Copy requirements.txt into the container
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    default-libmysqlclient-dev \
+    pkg-config \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY requirements.txt .
+RUN pip install --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
 
-# Install dependencies
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Copy all app code into container
 COPY . .
 
-# Expose port 8000 (Django default)
 EXPOSE 8000
 
-# Command to run the app (adjust if different)
-CMD ["python", "manage.py", "runserver", "0.0.0.0:8000", "-p"]
-
+CMD ["sh", "-c", "python manage.py makemigrations && python manage.py migrate && python manage.py runserver 0.0.0.0:8000"]
