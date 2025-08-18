@@ -1,6 +1,6 @@
 # PowerShell-compatible script to set up and verify a local Kubernetes cluster using Minikube
 # Usage (Windows):
-#   powershell -NoProfile -ExecutionPolicy Bypass -File .\KurbeScript
+#   powershell -NoProfile -ExecutionPolicy Bypass -File .\messaging_app\kurbeScript
 
 $ErrorActionPreference = 'Stop'
 
