@@ -1,0 +1,110 @@
+# PowerShell-compatible script to set up and verify a local Kubernetes cluster using Minikube
+# Usage (Windows):
+#   powershell -NoProfile -ExecutionPolicy Bypass -File .\KurbeScript
+
+$ErrorActionPreference = 'Stop'
+
+function Test-CommandExists {
+	param(
+		[Parameter(Mandatory = $true)][string]$Name
+	)
+	try {
+		$null = Get-Command -Name $Name -ErrorAction Stop
+		return $true
+	} catch {
+		return $false
+	}
+}
+
+function Ensure-MinikubeInstalled {
+	if (Test-CommandExists -Name 'minikube') {
+		Write-Host 'Minikube is already installed.'
+		return
+	}
+
+	Write-Host 'Minikube is not installed. Attempting installation...'
+
+	$installed = $false
+
+	if (Test-CommandExists -Name 'winget') {
+		try {
+			Write-Host 'Installing via winget...'
+			winget install -e --id Kubernetes.minikube --accept-source-agreements --accept-package-agreements | Out-Host
+			if (Test-CommandExists -Name 'minikube') { $installed = $true }
+		} catch {
+			Write-Warning 'winget installation attempt failed.'
+		}
+	}
+
+	if (-not $installed -and (Test-CommandExists -Name 'choco')) {
+		try {
+			Write-Host 'Installing via Chocolatey...'
+			choco install minikube -y | Out-Host
+			if (Test-CommandExists -Name 'minikube') { $installed = $true }
+		} catch {
+			Write-Warning 'choco installation attempt failed.'
+		}
+	}
+
+	if (-not $installed) {
+		Write-Error 'Failed to install Minikube automatically. Please install it manually: https://minikube.sigs.k8s.io/docs/start/'
+	}
+}
+
+function Start-KubeCluster {
+	Write-Host 'Checking Minikube status...'
+	$needsStart = $true
+	try {
+		$statusText = minikube status 2>$null
+		if ($LASTEXITCODE -eq 0 -and $statusText -match 'Running') {
+			$needsStart = $false
+		}
+	} catch {
+		$needsStart = $true
+	}
+
+	if ($needsStart) {
+		Write-Host 'Starting Minikube cluster (this may take a few minutes)...'
+		# Let minikube auto-select a driver; if Docker Desktop is running it will use docker
+		minikube start | Out-Host
+	} else {
+		Write-Host 'Minikube cluster already running.'
+	}
+
+	Write-Host 'Updating current kubectl context to minikube...'
+	minikube update-context | Out-Host
+}
+
+function Invoke-Kubectl {
+	param(
+		[Parameter(Mandatory = $true)][string[]]$Args
+	)
+	if (Test-CommandExists -Name 'kubectl') {
+		& kubectl @Args
+		return $LASTEXITCODE
+	} else {
+		# Fallback to "minikube kubectl -- <args>"
+		& minikube kubectl -- @Args
+		return $LASTEXITCODE
+	}
+}
+
+try {
+	Ensure-MinikubeInstalled
+	Start-KubeCluster
+
+	Write-Host 'Verifying cluster with: kubectl cluster-info'
+	$rc = Invoke-Kubectl -Args @('cluster-info')
+	if ($rc -ne 0) { throw 'kubectl cluster-info failed.' }
+
+	Write-Host "\nListing pods across all namespaces:"
+	$rc = Invoke-Kubectl -Args @('get','pods','-A','-o','wide')
+	if ($rc -ne 0) { throw 'kubectl get pods failed.' }
+
+	Write-Host "\nSuccess: Kubernetes cluster is up and responding."
+} catch {
+	Write-Error $_
+	exit 1
+}
+
+
