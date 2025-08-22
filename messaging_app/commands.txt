@@ -15,8 +15,8 @@ kubectl get service nginx-ingress-ingress-nginx-controller -n ingress-nginx
 minikube addons enable ingress
 
 # 5. Apply the Ingress configuration
-kubectl apply -f messaging_app/ingress.yaml
-# Command used: kubectl apply -f messaging_app/ingress.yaml
+kubectl apply -f ingress.yaml
+# Command used: kubectl apply -f ingress.yaml
 
 # 6. Verify the Ingress is created
 kubectl get ingress
