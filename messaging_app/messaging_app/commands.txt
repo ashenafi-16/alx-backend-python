@@ -1,0 +1,31 @@
+# Commands to install Nginx Ingress controller and apply Ingress configuration
+
+# 1. Install Nginx Ingress controller using Helm
+helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+helm repo update
+helm install nginx-ingress ingress-nginx/ingress-nginx --namespace ingress-nginx --create-namespace
+
+# 2. Wait for the Ingress controller to be ready
+kubectl wait --namespace ingress-nginx --for=condition=ready pod --selector=app.kubernetes.io/name=ingress-nginx --timeout=120s
+
+# 3. Get the external IP address (for cloud providers) or use port-forward for local testing
+kubectl get service nginx-ingress-ingress-nginx-controller -n ingress-nginx
+
+# 4. For local testing with Minikube, enable the Ingress addon
+minikube addons enable ingress
+
+# 5. Apply the Ingress configuration
+kubectl apply -f messaging_app/ingress.yaml
+
+# 6. Verify the Ingress is created
+kubectl get ingress
+
+# 7. Check Ingress controller logs
+kubectl logs -n ingress-nginx -l app.kubernetes.io/name=ingress-nginx
+
+# 8. Test the Ingress (add to /etc/hosts for local testing)
+# echo "127.0.0.1 messaging-app.local" >> /etc/hosts
+# Then visit: http://messaging-app.local/api/ or http://messaging-app.local/admin/
+
+# 9. For Minikube, get the Ingress IP
+kubectl get ingress messaging-app-ingress
