@@ -1,0 +1,107 @@
+# PowerShell script to scale the Django app on Kubernetes, verify pods, run load test with wrk,
+# and display resource usage using kubectl top.
+# Usage:
+#   powershell -NoProfile -ExecutionPolicy Bypass -File .\messaging_app\kubctl-0x01
+
+$ErrorActionPreference = 'Stop'
+
+function Test-CommandExists {
+	param([Parameter(Mandatory=$true)][string]$Name)
+	try { $null = Get-Command -Name $Name -ErrorAction Stop; return $true } catch { return $false }
+}
+
+function Ensure-Tool {
+	param([Parameter(Mandatory=$true)][string]$Name,[string]$WingetId,[string]$ChocoName)
+	if (Test-CommandExists $Name) { return }
+	Write-Host "'$Name' not found. Attempting to install..."
+	$installed = $false
+	if ($WingetId -and (Test-CommandExists 'winget')) {
+		try { winget install -e --id $WingetId --accept-source-agreements --accept-package-agreements | Out-Host; if (Test-CommandExists $Name) { $installed = $true } } catch { Write-Warning "winget failed for $Name" }
+	}
+	if (-not $installed -and $ChocoName -and (Test-CommandExists 'choco')) {
+		try { choco install $ChocoName -y | Out-Host; if (Test-CommandExists $Name) { $installed = $true } } catch { Write-Warning "choco failed for $Name" }
+	}
+	if (-not $installed) { Write-Error "Please install '$Name' and re-run." }
+}
+
+function Scale-And-Verify {
+	param([string]$DeploymentName = 'messaging-app',[int]$Replicas = 3)
+	Write-Host "Scaling deployment/$DeploymentName to $Replicas replicas..."
+	kubectl scale deployment $DeploymentName --replicas=$Replicas | Out-Host
+	Write-Host 'Waiting for rollout to complete...'
+	kubectl rollout status deployment $DeploymentName --timeout=180s | Out-Host
+	Write-Host "Current pods:"
+	kubectl get pods -o wide | Out-Host
+}
+
+function Start-PortForward {
+	param([string]$Resource = 'deploy/messaging-app',[string]$LocalPort = '8000',[string]$TargetPort = '8000')
+	Write-Host "Starting port-forward $LocalPort:$TargetPort on $Resource ..."
+	# Start kubectl port-forward in a hidden background process
+	$pf = Start-Process -FilePath 'kubectl' -ArgumentList @('port-forward', $Resource, "$LocalPort`:$TargetPort") -WindowStyle Hidden -PassThru
+	Start-Sleep -Seconds 3
+	return $pf
+}
+
+function Stop-PortForward {
+	param($Process)
+	if ($Process -and -not $Process.HasExited) {
+		Write-Host 'Stopping port-forward...'
+		try { Stop-Process -Id $Process.Id -Force } catch { }
+	}
+}
+
+function Ensure-MetricsServer {
+	# Try top; if it fails, enable metrics-server addon for Minikube, then wait and retry
+	$topOk = $true
+	try { kubectl top pods | Out-Null } catch { $topOk = $false }
+	if (-not $topOk) {
+		if (Test-CommandExists 'minikube') {
+			Write-Host 'Enabling Minikube metrics-server addon...'
+			minikube addons enable metrics-server | Out-Host
+			Write-Host 'Waiting 20s for metrics server to become available...'
+			Start-Sleep -Seconds 20
+		} else {
+			Write-Warning 'metrics-server not available and Minikube not found to auto-enable. kubectl top may fail.'
+		}
+	}
+}
+
+try {
+	# Ensure required tools
+	Ensure-Tool -Name 'kubectl' -WingetId 'Kubernetes.kubectl' -ChocoName 'kubernetes-cli'
+	# wrk may be available via chocolatey
+	if (-not (Test-CommandExists 'wrk')) { Ensure-Tool -Name 'wrk' -WingetId '' -ChocoName 'wrk' }
+
+	# 1) Scale to 3 replicas and verify
+	Scale-And-Verify -DeploymentName 'messaging-app' -Replicas 3
+
+	# 2) Port-forward and run wrk against local endpoint
+	$pf = Start-PortForward -Resource 'deploy/messaging-app' -LocalPort '8000' -TargetPort '8000'
+	try {
+		Write-Host 'Running quick health request to confirm app is reachable...'
+		try { Invoke-WebRequest -Uri 'http://127.0.0.1:8000/' -UseBasicParsing -TimeoutSec 10 | Out-Null } catch { Write-Warning 'Health check request failed (app may still be starting or DB missing). Proceeding to wrk).' }
+		if (Test-CommandExists 'wrk') {
+			Write-Host 'Starting wrk load test (15s, 2 threads, 50 connections)...'
+			wrk -t2 -c50 -d15s http://127.0.0.1:8000/ | Out-Host
+		} else {
+			Write-Warning "'wrk' is not installed; skipping load test."
+		}
+	} finally {
+		Stop-PortForward -Process $pf
+	}
+
+	# 3) Show resource usage
+	Ensure-MetricsServer
+	Write-Host "\nResource usage (pods):"
+	kubectl top pods | Out-Host
+	Write-Host "\nResource usage (nodes):"
+	kubectl top nodes | Out-Host
+
+	Write-Host "\nDone."
+} catch {
+	Write-Error $_
+	exit 1
+}
+
+
