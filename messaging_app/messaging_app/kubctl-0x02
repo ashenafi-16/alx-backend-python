@@ -1,0 +1,152 @@
+#!/usr/bin/env pwsh
+# PowerShell script for blue-green deployment strategy
+# Usage: powershell -NoProfile -ExecutionPolicy Bypass -File .\messaging_app\kubctl-0x02
+
+$ErrorActionPreference = 'Stop'
+
+function Write-ColorOutput {
+    param([string]$Message, [string]$Color = "White")
+    Write-Host $Message -ForegroundColor $Color
+}
+
+function Test-DeploymentReady {
+    param([string]$DeploymentName, [int]$TimeoutSeconds = 300)
+    
+    Write-ColorOutput "Waiting for deployment/$DeploymentName to be ready..." "Yellow"
+    $startTime = Get-Date
+    
+    do {
+        $deployment = kubectl get deployment $DeploymentName -o json | ConvertFrom-Json
+        $readyReplicas = $deployment.status.readyReplicas
+        $desiredReplicas = $deployment.spec.replicas
+        
+        if ($readyReplicas -eq $desiredReplicas) {
+            Write-ColorOutput "✅ Deployment $DeploymentName is ready!" "Green"
+            return $true
+        }
+        
+        $elapsed = (Get-Date) - $startTime
+        if ($elapsed.TotalSeconds -gt $TimeoutSeconds) {
+            Write-ColorOutput "❌ Timeout waiting for deployment $DeploymentName" "Red"
+            return $false
+        }
+        
+        Write-ColorOutput "  Ready: $readyReplicas/$desiredReplicas (${elapsed.TotalSeconds:F0}s elapsed)" "Cyan"
+        Start-Sleep -Seconds 10
+    } while ($true)
+}
+
+function Switch-Traffic {
+    param([string]$Version)
+    
+    Write-ColorOutput "🔄 Switching traffic to $Version deployment..." "Yellow"
+    
+    # Update the main service selector
+    $patch = @{
+        spec = @{
+            selector = @{
+                app = "messaging-app"
+                version = $Version
+            }
+        }
+    } | ConvertTo-Json -Depth 3
+    
+    kubectl patch service messaging-app-service -p $patch
+    
+    Write-ColorOutput "✅ Traffic switched to $Version deployment" "Green"
+}
+
+function Check-Logs {
+    param([string]$DeploymentName, [int]$Lines = 50)
+    
+    Write-ColorOutput "📋 Checking logs for $DeploymentName..." "Yellow"
+    
+    try {
+        $pods = kubectl get pods -l app=messaging-app,version=$($DeploymentName -replace 'messaging-app-', '') -o json | ConvertFrom-Json
+        
+        if ($pods.items.Count -eq 0) {
+            Write-ColorOutput "❌ No pods found for $DeploymentName" "Red"
+            return
+        }
+        
+        foreach ($pod in $pods.items) {
+            $podName = $pod.metadata.name
+            Write-ColorOutput "  Pod: $podName" "Cyan"
+            
+            $logs = kubectl logs $podName --tail=$Lines 2>$null
+            if ($logs) {
+                # Check for common error patterns
+                $errorCount = ($logs -split "`n" | Where-Object { $_ -match "(ERROR|Exception|Traceback|Failed)" }).Count
+                if ($errorCount -gt 0) {
+                    Write-ColorOutput "    ⚠️  Found $errorCount potential error lines" "Yellow"
+                } else {
+                    Write-ColorOutput "    ✅ No obvious errors in logs" "Green"
+                }
+                
+                # Show last few lines
+                $logs | Select-Object -Last 10 | ForEach-Object { Write-Host "      $_" }
+            } else {
+                Write-ColorOutput "    ℹ️  No logs available yet" "Gray"
+            }
+            Write-Host ""
+        }
+    } catch {
+        Write-ColorOutput "❌ Error checking logs: $_" "Red"
+    }
+}
+
+try {
+    Write-ColorOutput "🚀 Starting Blue-Green Deployment Strategy" "Magenta"
+    Write-Host ""
+    
+    # Step 1: Deploy Blue version (current stable)
+    Write-ColorOutput "📦 Step 1: Deploying Blue version..." "Blue"
+    kubectl apply -f messaging_app/blue_deployment.yaml
+    kubectl apply -f messaging_app/kubeservice.yaml
+    
+    if (-not (Test-DeploymentReady -DeploymentName "messaging-app-blue")) {
+        throw "Blue deployment failed to become ready"
+    }
+    
+    # Step 2: Deploy Green version (new version)
+    Write-ColorOutput "📦 Step 2: Deploying Green version..." "Green"
+    kubectl apply -f messaging_app/green_deployment.yaml
+    
+    if (-not (Test-DeploymentReady -DeploymentName "messaging-app-green")) {
+        throw "Green deployment failed to become ready"
+    }
+    
+    # Step 3: Check logs for both versions
+    Write-ColorOutput "📋 Step 3: Checking deployment logs..." "Yellow"
+    Check-Logs -DeploymentName "messaging-app-blue"
+    Check-Logs -DeploymentName "messaging-app-green"
+    
+    # Step 4: Show current status
+    Write-ColorOutput "📊 Step 4: Current deployment status..." "Yellow"
+    kubectl get deployments -l app=messaging-app
+    kubectl get services -l app=messaging-app
+    kubectl get pods -l app=messaging-app -o wide
+    
+    # Step 5: Traffic switching options
+    Write-ColorOutput "🔄 Step 5: Traffic switching options..." "Yellow"
+    Write-Host ""
+    Write-ColorOutput "To switch traffic to GREEN deployment:" "Green"
+    Write-Host "  kubectl patch service messaging-app-service -p '{\"spec\":{\"selector\":{\"version\":\"green\"}}}'"
+    Write-Host ""
+    Write-ColorOutput "To switch traffic back to BLUE deployment:" "Blue"
+    Write-Host "  kubectl patch service messaging-app-service -p '{\"spec\":{\"selector\":{\"version\":\"blue\"}}}'"
+    Write-Host ""
+    Write-ColorOutput "To test GREEN deployment directly:" "Green"
+    Write-Host "  kubectl port-forward service/messaging-app-green 8001:8000"
+    Write-Host "  # Then visit http://localhost:8001"
+    Write-Host ""
+    Write-ColorOutput "To test BLUE deployment directly:" "Blue"
+    Write-Host "  kubectl port-forward service/messaging-app-blue 8000:8000"
+    Write-Host "  # Then visit http://localhost:8000"
+    
+    Write-ColorOutput "✅ Blue-Green deployment completed successfully!" "Green"
+    
+} catch {
+    Write-ColorOutput "❌ Deployment failed: $_" "Red"
+    exit 1
+}

@@ -1,6 +1,6 @@
 #!/bin/bash
 # Bash script for rolling update with zero-downtime monitoring
-# Usage: bash messaging_app/kubctl-0x03
+# Usage: bash kubctl-0x03
 
 set -e  # Exit on any error
 
@@ -179,7 +179,7 @@ main() {
     # Apply updated deployment
     print_header "Applying Updated Deployment"
     print_status "Applying blue_deployment.yaml with image messaging-app:2.0"
-    kubectl apply -f messaging_app/blue_deployment.yaml
+    kubectl apply -f blue_deployment.yaml
     
     if [ $? -eq 0 ]; then
         print_status "✅ Deployment file applied successfully"
