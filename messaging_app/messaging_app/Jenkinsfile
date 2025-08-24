@@ -16,7 +16,8 @@ pipeline {
                     $class: 'GitSCM',
                     branches: [[name: '*/main']],
                     userRemoteConfigs: [[
-                        url: 'https://github.com/your-username/alx-backend-python.git',
+                        
+                        url: 'https://github.com/ashenafi-16/alx-backend-python',
                         credentialsId: 'github-credentials'
                     ]]
                 ])
