@@ -59,7 +59,10 @@ After initial setup, install these plugins:
 1. Go to **Manage Jenkins** → **Manage Credentials**
 2. Click **System** → **Global credentials** → **Add Credentials**
 3. Choose **SSH Username with private key** or **Username with password**
-4. Add your GitHub credentials
+4. **ID**: `github-credentials` (this must match the credentialsId in Jenkinsfile)
+5. **Username**: Your GitHub username
+6. **Password/Private Key**: Your GitHub password or SSH private key
+7. **Description**: GitHub credentials for messaging app repository
 
 ### **Docker Hub Credentials**
 1. Add new credentials
@@ -89,6 +92,17 @@ After initial setup, install these plugins:
 
 ## 6. Configure Pipeline Environment
 
+### **Update GitHub Repository URL**
+In the `Jenkinsfile`, update the repository URL to match your actual GitHub repository:
+
+```groovy
+userRemoteConfigs: [[
+    url: 'https://github.com/YOUR-ACTUAL-USERNAME/alx-backend-python.git',  // Change this!
+    credentialsId: 'github-credentials'
+]]
+```
+
+### **Update Docker Registry**
 Update the `Jenkinsfile` environment variables:
 
 ```groovy
